@@ -34,6 +34,7 @@ class AutoPlayFragment : Fragment() {
             fragmentCallBack.switchBackToMain(editTextBox.text.toString())
             backButton.isClickable = false
             editTextBox.isEnabled = false
+            playButton.isClickable = false
         }
         backButton.setOnClickListener {
             fragmentCallBack.switchBackToMain(editTextBox.text.toString())

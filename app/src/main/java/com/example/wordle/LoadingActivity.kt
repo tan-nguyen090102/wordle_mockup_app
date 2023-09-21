@@ -45,6 +45,7 @@ class LoadingActivity : AppCompatActivity() {
                 }
             }
             time = timer
+            Thread.interrupted()
         }.start()
 
         //Send data to main activity
@@ -58,6 +59,7 @@ class LoadingActivity : AppCompatActivity() {
                 Thread.sleep(3000 - time)
             startActivity(mainIntent)
             finish()
+            Thread.interrupted()
         }.start()
 
     }

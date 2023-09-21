@@ -16,6 +16,8 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.view.doOnPreDraw
+import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import java.util.Dictionary
 
@@ -141,7 +143,6 @@ class MainActivity : AppCompatActivity(), FragmentCallBack {
                 }
                 false
             }
-
         }
 
         for (i in 1..4)
@@ -150,10 +151,12 @@ class MainActivity : AppCompatActivity(), FragmentCallBack {
         }
         currentLayout = layoutList[0]
         word = randomizeWord(wordList)
+        summitedButton.isClickable = false
     }
 
     //Submitted button listener
     fun buttonClick(view: View) {
+        summitedButton.isClickable = false
         index++
         if (index < 5)
         {
@@ -211,7 +214,7 @@ class MainActivity : AppCompatActivity(), FragmentCallBack {
         {
             for (i in 0..<currentLayout.childCount)
             {
-                val currentEditText= currentLayout.getChildAt(i) as EditText
+                val currentEditText = currentLayout.getChildAt(i) as EditText
                 val currentChar = currentEditText.text.toString().toCharArray()[0]
                 if (currentChar == char)
                 {
@@ -235,54 +238,6 @@ class MainActivity : AppCompatActivity(), FragmentCallBack {
         return greenList.size == 5
     }
 
-    data class ReturnCheck(val greenList: List<Char>, val yellowList: List<Char>, val greyList: List<Char>, val result: Boolean)
-
-    private fun checkWordFromAutoPlay(charGuessList: CharArray, charChosenList: CharArray): ReturnCheck
-    {
-        val greenList = mutableListOf<Char>()
-        val yellowList = mutableListOf<Char>()
-        val greyList = mutableListOf<Char>()
-
-        //Apply words to edittext
-        for (i in 0..<currentLayout.childCount) {
-                val currentEditText= currentLayout.getChildAt(i) as EditText
-                currentEditText.setText(charChosenList[i].toString())
-
-        }
-
-        //Check the guess
-        for ((charIndex, char) in charGuessList.withIndex())
-        {
-            for (i in 0..<currentLayout.childCount)
-            {
-                val currentEditText = currentLayout.getChildAt(i) as EditText
-                val currentChar = charChosenList[i]
-                if (currentChar == char)
-                {
-                    if (charIndex == i)
-                    {
-                        currentEditText.setBackgroundColor(Color.GREEN)
-                        greenList.add(currentChar)
-                        continue
-                    }
-                    else
-                    {
-                        if (greenList.contains(currentChar))
-                            continue
-                        currentEditText.setBackgroundColor(Color.YELLOW)
-                        yellowList.add(currentChar)
-                    }
-                }
-                else
-                {
-                    greyList.add(currentChar)
-                }
-                currentEditText.isEnabled = false
-            }
-        }
-        return ReturnCheck(greenList, yellowList, greyList, greenList.size == 5)
-    }
-
     //Reset the game
     fun resetGame(view: View? = null)
     {
@@ -303,15 +258,18 @@ class MainActivity : AppCompatActivity(), FragmentCallBack {
         {
             layoutList[i].visibility = View.INVISIBLE
         }
-        currentLayout = layoutList[0]
+
 
         //Reset focus point
         val originText = findViewById<EditText>(R.id.e0_0)
         originText?.requestFocus()
+        currentLayout = layoutList[0]
 
         //Reset button and randomize word
         resetButton.isClickable = false
+        summitedButton.isClickable = false
         word = randomizeWord(wordList)
+        destroyFragment()
     }
 
     //Show and hide the fragment
@@ -330,21 +288,71 @@ class MainActivity : AppCompatActivity(), FragmentCallBack {
     //Autoplay button listener
     fun switchToAutoPlay(view : View)
     {
-        for (item in editTextList)
-            item.isEnabled = false
-
         //Create fragment
+        destroyFragment()
         createFragment()
 
         //Delete any structure on edittext
         for (item in editTextList)
         {
             if (item.text.isNotEmpty())
-                item.setText("")
+                item.setText(".")
+            else
+                item.setText(".")
+            item.setBackgroundColor(resources.getColor(R.color.editTextColor))
+        }
+
+        for (i in 1..4)
+        {
+            layoutList[i].visibility = View.INVISIBLE
         }
 
         summitedButton.isClickable = false
         resetButton.isClickable = false
+    }
+
+    data class ReturnCheck(val greenList: CharArray, val yellowList: List<Char>, val greyList: List<Char>, val result: Boolean)
+
+    private fun checkWordFromAutoPlay(charGuessList: CharArray, charChosenList: CharArray): ReturnCheck
+    {
+        val greenList = CharArray(5)
+        val yellowList = mutableListOf<Char>()
+        val greyList = mutableListOf<Char>()
+
+        //Apply words to edittext
+        for (i in 0..<currentLayout.childCount) {
+            val currentEditText = currentLayout.getChildAt(i) as EditText
+            currentEditText.setText(charGuessList[i].toString())
+        }
+
+        //Check the word
+        for ((index, item) in charGuessList.withIndex())
+        {
+            //Yellow and green
+            if (charChosenList.contains(item))
+            {
+                val currentEditText = currentLayout.getChildAt(index) as EditText
+                //Green
+                if (charGuessList[index] == charChosenList[index])
+                {
+                    greenList[index] = item
+                    currentEditText.setBackgroundColor(Color.GREEN)
+                }
+                //Yellow
+                else
+                {
+                    yellowList.add(item)
+                    currentEditText.setBackgroundColor(Color.YELLOW)
+                }
+            }
+            //Grey
+            else
+            {
+                greyList.add(item)
+            }
+        }
+
+        return ReturnCheck(greenList, yellowList.distinct(), greyList.distinct(), greenList.size == 5)
     }
 
     //AutoPlay
@@ -352,55 +360,71 @@ class MainActivity : AppCompatActivity(), FragmentCallBack {
     {
         val chosenCharList = wordChosen.toCharArray()
         val charInWord = mutableListOf<Char>()
-        //val charInIndex =
+        var charInIndex = CharArray(5)
         val charNotInWord = mutableListOf<Char>()
         val wordListCopy = ArrayList<String>(wordList)
+        val removedWord =  mutableListOf<String>()
         var guess : CharArray
-        //Toast.makeText(this, wordChosen, Toast.LENGTH_LONG).show()
+        currentLayout = layoutList[0]
+        index = 0
 
         //Iteration
         for (i in 0..4)
         {
-            Thread() {
-                guess = randomizeWord(wordListCopy).toCharArray()
-                val (g, y, gr, result) = checkWordFromAutoPlay(guess, chosenCharList)
-                charInWord.addAll(y)
-                //charInIndex.addAll(g)
-                charNotInWord.addAll(gr)
+            guess = randomizeWord(wordListCopy).uppercase().toCharArray()
+            val (g, y, gr, result) = checkWordFromAutoPlay(guess, chosenCharList)
+            charInWord.addAll(y)
+            charInIndex = g
+            charNotInWord.addAll(gr)
+            val wordIteration = ArrayList<String>(wordListCopy)
 
-                //Filter
-                for (item in wordListCopy)
+            //Filter
+            for ((wordIndex, item) in wordIteration.withIndex())
+            {
+                //This filter is to strict it removes all possible word
+                /*
+                for ((index, _) in item.withIndex())
                 {
-                    //Check the word not in list and word in yellow
-                    if (item.contains(charNotInWord.toString()) || !item.contains(charInWord.toString()))
+                    if (item[index] != charInIndex[index] && charInIndex[index].toString().isNotEmpty())
                     {
-                        wordListCopy.remove(item)
-                        continue
-                    }
-
-                    //Check the word in green
-                    for ((index, char) in item.withIndex())
-                    {
-                        //if (char != charInIndex[index])
-                        //{
-                            //wordListCopy.remove(item)
-                            //continue
-                        //}
+                        removedWord.add(item)
+                        break
                     }
                 }
-
-                Thread.sleep(1000)
-                //Next iteration preparation
-                index++
-                if (index < 5) {
-                    if (result) {
-                        Toast.makeText(this, "You win", Toast.LENGTH_LONG).show()
-                        Thread.interrupted()
+                */
+                for ((index, _) in charInWord.withIndex())
+                {
+                    if (item.contains(charInWord[index]))
+                    {
+                        removedWord.add(item)
+                        break
                     }
-                    currentLayout = layoutList[index]
-                    currentLayout.visibility = View.VISIBLE
                 }
-            }.start()
+                for ((index, _) in charNotInWord.withIndex())
+                {
+                    if (item.contains(charNotInWord[index]))
+                    {
+                        removedWord.add(item)
+                        break
+                    }
+                }
+            }
+            wordListCopy.removeAll(removedWord.toSet())
+
+            //Next iteration preparation
+            index++
+            if (index < 5) {
+                if (result) {
+
+                }
+                currentLayout = layoutList[index]
+                currentLayout.visibility = View.VISIBLE
+            }
+            else
+            {
+                summitedButton.isClickable = false
+                resetButton.isClickable = true
+            }
         }
     }
 
@@ -432,11 +456,10 @@ class MainActivity : AppCompatActivity(), FragmentCallBack {
         }
         else
         {
-            Toast.makeText(this, "AutoPlay started", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "AutoPlay started", Toast.LENGTH_SHORT).show()
             summitedButton.isClickable = false
             resetButton.isClickable = false
             autoPlay(wordChosen.uppercase())
         }
-
     }
 }
